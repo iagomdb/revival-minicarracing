@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Minicar Racing</title>
+</head>
+<body>
+  <script>
+    // Aberto direto do disco (file://), o navegador bloqueia os módulos do jogo. Explica como abrir.
+    if (location.protocol === 'file:') {
+      document.addEventListener('DOMContentLoaded', () => {
+        document.body.innerHTML =
+          '<div style="font:18px/1.6 Trebuchet MS,Arial,sans-serif;color:#f5f1e8;background:#2a2118;min-height:100vh;' +
+          'display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;text-align:center">' +
+          '<div><h1 style="color:#ffd23f;font-style:italic;margin:0 0 12px">MINICAR RACING</h1>' +
+          '<p style="margin:0 0 8px">O jogo não abre direto pelo arquivo.</p>' +
+          '<p style="margin:0">Dê dois cliques em <b>jogar.bat</b>, na pasta do jogo,<br>' +
+          'ou rode <code>npm run dev</code> no terminal.</p></div></div>';
+      });
+    }
+  </script>
+  <canvas id="game"></canvas>
+
+  <div id="menu" class="overlay">
+    <div class="panel">
+      <h1>MINICAR RACING</h1>
+      <p class="sub">Uma homenagem a <b>Asphalt Duell</b> (AEON Design, 1999) · MVP</p>
+      <div class="row">
+        <span class="label">Pista <kbd>T</kbd></span>
+        <div class="seg" id="tracks"></div>
+      </div>
+      <div class="row">
+        <span class="label">Dificuldade</span>
+        <div class="seg" id="diff">
+          <button data-d="facil">1 · Fácil</button>
+          <button data-d="medio">2 · Médio</button>
+          <button data-d="dificil">3 · Difícil</button>
+        </div>
+      </div>
+      <table class="keys">
+        <tr><td><kbd>↑</kbd><kbd>↓</kbd></td><td>Acelerar · frear e dar ré</td></tr>
+        <tr><td><kbd>←</kbd><kbd>→</kbd></td><td>Virar</td></tr>
+        <tr><td><kbd>Ctrl</kbd> ou <kbd>Z</kbd></td><td>Arma 1</td></tr>
+        <tr><td><kbd>Shift</kbd> ou <kbd>X</kbd></td><td>Arma 2 (só em carro de 2 armas)</td></tr>
+        <tr><td><kbd>Alt</kbd> ou <kbd>C</kbd></td><td>Arma traseira</td></tr>
+        <tr><td><kbd>Espaço</kbd> ou <kbd>V</kbd></td><td>Extra (nitro)</td></tr>
+        <tr><td><kbd>Esc</kbd> · <kbd>M</kbd></td><td>Pausa · som</td></tr>
+      </table>
+      <p class="tip">3 voltas contra 7 carros. Antes de largar você escolhe o carro e as armas, e a munição recarrega toda vez
+        que você cruza a linha de chegada. Pegue os sacos de <b>$</b> e as caixas de conserto. E não saia antes do verde!</p>
+      <button id="startBtn" class="big">Correr! <small>(Enter)</small></button>
+    </div>
+  </div>
+
+  <div id="loadout" class="overlay hidden">
+    <div class="panel wide">
+      <h2>Equipar</h2>
+      <p class="sub">Escolha o carro e o que vai nele. A munição de cada arma recarrega a cada volta.</p>
+      <div class="slot">
+        <div class="slot-head"><span class="label">Carro</span></div>
+        <div class="choices cars" id="cars"></div>
+      </div>
+      <div class="slot">
+        <div class="slot-head"><span class="label">Arma 1</span><span><kbd>Ctrl</kbd> ou <kbd>Z</kbd></span></div>
+        <div class="choices" data-slot="front0"></div>
+      </div>
+      <div class="slot">
+        <div class="slot-head"><span class="label">Arma 2</span><span><kbd>Shift</kbd> ou <kbd>X</kbd></span></div>
+        <div class="choices" data-slot="front1"></div>
+      </div>
+      <div class="slot">
+        <div class="slot-head"><span class="label">Traseira</span><span><kbd>Alt</kbd> ou <kbd>C</kbd></span></div>
+        <div class="choices" data-slot="rear"></div>
+      </div>
+      <div class="slot">
+        <div class="slot-head"><span class="label">Extra</span><span><kbd>Espaço</kbd> ou <kbd>V</kbd></span></div>
+        <div class="choices" data-slot="extra"></div>
+      </div>
+      <div class="btns">
+        <button id="goBtn" class="big">Largar! <small>(Enter)</small></button>
+        <button id="backBtn">Voltar <small>(Esc)</small></button>
+      </div>
+    </div>
+  </div>
+
+  <div id="pause" class="overlay hidden">
+    <div class="panel small">
+      <h2>Pausado</h2>
+      <div class="stack">
+        <button id="resumeBtn" class="big">Continuar <small>(Esc)</small></button>
+        <button id="restartBtn">Reiniciar corrida <small>(R)</small></button>
+        <button id="quitBtn">Voltar ao menu <small>(Q)</small></button>
+      </div>
+      <p class="tip"><kbd>M</kbd> liga e desliga o som.</p>
+    </div>
+  </div>
+
+  <div id="results" class="overlay hidden">
+    <div class="panel wide">
+      <h2 id="resTitle">Resultado</h2>
+      <div class="scroll">
+        <table class="res">
+          <thead>
+            <tr><th>#</th><th>Piloto</th><th>Abates</th><th>Batidas</th><th>Extras $</th><th>Prêmio $</th><th>Total $</th></tr>
+          </thead>
+          <tbody id="resBody"></tbody>
+        </table>
+      </div>
+      <p class="tip" id="resInfo"></p>
+      <div class="btns">
+        <button id="againBtn" class="big">Correr de novo <small>(Enter)</small></button>
+        <button id="menuBtn">Menu <small>(Q)</small></button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

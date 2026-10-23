@@ -1,0 +1,16 @@
+{
+  "name": "minicar-racing",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Corrida com combate de carrinhos vista de cima, inspirada em Asphalt Duell / Mini Car Racing (AEON Design, 1999).",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "vite": "^8.3.5"
+  }
+}

@@ -1,0 +1,152 @@
+:root {
+  --ink: #f5f1e8;
+  --muted: #b9b2a3;
+  --accent: #ffd23f;
+  --red: #e8392b;
+  --panel: rgba(22, 20, 26, 0.93);
+  --line: #4a4550;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #2a2118;
+  color: var(--ink);
+  font-family: "Trebuchet MS", "Segoe UI", Arial, sans-serif;
+}
+
+canvas { display: block; }
+
+/* Telas por cima do jogo */
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(15, 10, 6, 0.35);
+}
+.overlay.hidden { display: none; }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 24px 28px;
+  width: min(540px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+}
+.panel.wide { width: min(760px, 100%); }
+.panel.small { width: min(380px, 100%); }
+
+h1 {
+  margin: 0;
+  font-size: clamp(34px, 7vw, 54px);
+  font-style: italic;
+  font-weight: 900;
+  letter-spacing: 1px;
+  line-height: 1;
+  color: var(--accent);
+  text-shadow: 3px 3px 0 #a3271a;
+}
+h2 { margin: 0 0 14px; font-style: italic; font-size: 30px; color: var(--accent); }
+.sub { margin: 8px 0 20px; color: var(--muted); font-size: 14px; }
+.tip { margin: 14px 0 0; color: var(--muted); font-size: 14px; line-height: 1.45; }
+
+.row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.label { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: 1px; }
+.seg { display: flex; gap: 6px; flex-wrap: wrap; }
+.stack { display: flex; flex-direction: column; gap: 8px; }
+.btns { display: flex; gap: 10px; margin-top: 18px; }
+
+/* Botões */
+button {
+  font: inherit;
+  color: var(--ink);
+  background: #3a3540;
+  border: 1px solid #5a5462;
+  border-radius: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+button:hover { background: #4a4452; }
+button.on { background: #a3271a; border-color: var(--red); }
+button small { opacity: 0.75; font-weight: 400; font-size: 13px; }
+button.big {
+  width: 100%;
+  margin-top: 18px;
+  padding: 12px 22px;
+  background: var(--red);
+  border-color: #ff6a5c;
+  font-weight: 700;
+  font-size: 20px;
+}
+button.big:hover { background: #ff4a3a; }
+.stack button.big, .btns button.big { margin-top: 0; }
+.btns button.big { flex: 1; }
+.btns button:not(.big) { flex: 0 0 auto; padding: 0 18px; }
+
+/* Tela de equipar */
+.slot { margin-top: 14px; }
+.slot-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.choice { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; text-align: left; }
+.choice b { font-size: 15px; }
+.choice .stat { color: var(--accent); font-size: 12px; }
+.choice .info { color: var(--muted); font-size: 12px; }
+.choice.on { background: #5a1d16; border-color: var(--red); }
+.choices.cars { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.car-pic { width: 80px; height: 48px; align-self: center; }
+.meter {
+  display: grid;
+  grid-template-columns: 76px repeat(10, 1fr);
+  gap: 2px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 11px;
+}
+.info + .meter, .meter + .stat { margin-top: 4px; }
+.meter i { height: 7px; border-radius: 1px; background: rgba(255, 255, 255, 0.12); }
+.meter i.on { background: var(--accent); }
+
+/* Tabelas */
+table { width: 100%; border-collapse: collapse; font-size: 15px; }
+.keys td { padding: 6px 0; border-bottom: 1px solid #3a3540; vertical-align: middle; }
+.keys td:first-child { width: 46%; }
+kbd {
+  display: inline-block;
+  margin: 1px 2px 1px 0;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #eee;
+  color: #222;
+  font: 700 12px/1.4 Consolas, monospace;
+  box-shadow: 0 2px 0 #999;
+}
+.scroll { overflow-x: auto; }
+.res th {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+  white-space: nowrap;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.res td {
+  padding: 7px 8px;
+  border-bottom: 1px solid #332f38;
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.res th:nth-child(2), .res td:nth-child(2) { text-align: left; }
+.res tr.me td { background: rgba(232, 57, 43, 0.22); color: #fff; font-weight: 700; }
