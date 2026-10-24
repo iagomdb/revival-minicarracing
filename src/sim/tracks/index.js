@@ -1,10 +1,13 @@
 import { createTrack } from '../track.js';
 import desert from './desert.js';
+import escada from './escada.js';
 import oito from './oito.js';
+import serpente from './serpente.js';
+import triangulo from './triangulo.js';
 
 // Todas as pistas, na ordem do menu. A primeira é a pista inicial.
 // Pista nova: crie o arquivo nesta pasta e ponha uma linha aqui.
-export const TRACKS = [oito, desert];
+export const TRACKS = [oito, desert, serpente, escada, triangulo];
 
 const built = new Map();
 

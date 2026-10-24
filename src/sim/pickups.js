@@ -1,4 +1,4 @@
-import { MONEY, PICKUPS, TRACK_HALF } from '../config.js';
+import { MONEY, PICKUPS } from '../config.js';
 import { randRange } from '../core/math.js';
 import { emit } from './events.js';
 import { pastCrossing, trackPoint } from './track.js';
@@ -9,11 +9,11 @@ export function placePickups(race) {
   race.pickups = [];
   for (let i = 0; i < PICKUPS.bags; i++) {
     const idx = pastCrossing(track, Math.floor(N * (0.06 + (0.88 * (i + rng() * 0.6)) / PICKUPS.bags)));
-    const pos = trackPoint(track, idx, randRange(rng, -0.6, 0.6) * TRACK_HALF);
+    const pos = trackPoint(track, idx, randRange(rng, -0.6, 0.6) * track.half);
     race.pickups.push({ kind: 'money', ...pos, active: true, t: 0 });
   }
   for (const f of PICKUPS.repairAt) {
-    const pos = trackPoint(track, pastCrossing(track, Math.floor(N * f)), randRange(rng, -0.3, 0.3) * TRACK_HALF);
+    const pos = trackPoint(track, pastCrossing(track, Math.floor(N * f)), randRange(rng, -0.3, 0.3) * track.half);
     race.pickups.push({ kind: 'repair', ...pos, active: true, t: 0 });
   }
 }

@@ -3,11 +3,11 @@ import test from 'node:test';
 import { DEFAULT_LOADOUT, EFFECTS, NITRO, PUDDLES, STEP, WEAPONS } from '../src/config.js';
 import { angDiff, seededRandom } from '../src/core/math.js';
 import { dodgeShots } from '../src/sim/ai.js';
-import { drive } from '../src/sim/car.js';
+import { drive, refreshStats } from '../src/sim/car.js';
 import { drainEvents } from '../src/sim/events.js';
 import { refillAmmo, sanitizeLoadout } from '../src/sim/loadout.js';
 import { createRace, updateRace } from '../src/sim/race.js';
-import { createTrack, trackPoint } from '../src/sim/track.js';
+import { createTrack, nearestOnTrack, trackPoint } from '../src/sim/track.js';
 import desert from '../src/sim/tracks/desert.js';
 import { updateMines, updatePuddles, updateShots, useWeapon } from '../src/sim/weapons.js';
 
@@ -39,6 +39,29 @@ function pour(race, owner, effect, x, y) {
   race.puddles.push({ weapon: effect, effect, owner, x, y, armT: 0, age: 0, life: 20, inside: new Set() });
 }
 
+test('laser duplo: um disparo gasta 1 de munição e solta dois lasers paralelos', () => {
+  const { race, shooter } = duel({ loadout: DEFAULT_LOADOUT });
+  useWeapon(race, shooter, 'laser');
+  const [a, b] = race.shots, { twin } = WEAPONS.laser.shot;
+  assert.equal(race.shots.length, 2);
+  assert.equal(shooter.ammo.laser, WEAPONS.laser.ammo - 1);
+  assert.equal(drainEvents(race).filter((e) => e.type === 'shot').length, 1, 'um som e um brilho por disparo');
+  assert.deepEqual([a.vx, a.vy], [b.vx, b.vy]);
+  assert.ok(Math.abs(Math.hypot(a.x - b.x, a.y - b.y) - 2 * twin) < 1e-9);
+});
+
+test('laser duplo: cada laser acerta sozinho e dá o dano todo', () => {
+  const hitBy = (targetOffset) => {
+    const { race, shooter, target } = duel({ loadout: DEFAULT_LOADOUT, targetOffset });
+    useWeapon(race, shooter, 'laser');
+    run(1, () => updateShots(race, STEP));
+    return target.stats.armor - target.armor;
+  };
+  const { damage } = WEAPONS.laser.shot;
+  assert.equal(hitBy(0), 2 * damage, 'no meio, os dois acertam');
+  assert.equal(hitBy(20), damage, 'de lado, só um acerta');
+});
+
 test('foguete vai reto e tira 60 de vida', () => {
   const { race, shooter, target } = duel();
   useWeapon(race, shooter, 'rocket');
@@ -47,8 +70,76 @@ test('foguete vai reto e tira 60 de vida', () => {
   assert.equal(shooter.ammo.rocket, WEAPONS.rocket.ammo - 1);
 });
 
-test('metralhadora: rajada de 20 tiros de 4 de dano', () => {
+// Atirador com motor melhor: a velocidade do tiro acompanha a velocidade máxima dele.
+function upgradeEngine(car) {
+  const before = car.stats.maxSpeed;
+  car.upgrades = { ...car.upgrades, engine: 3 };
+  refreshStats(car);
+  assert.ok(car.stats.maxSpeed > before);
+}
+
+test('o foguete voa num múltiplo fixo da velocidade máxima de quem atira, parado ou andando', () => {
+  const { race, shooter } = duel();
+  upgradeEngine(shooter);
+  const expected = WEAPONS.rocket.shot.carSpeed * shooter.stats.maxSpeed;
+  useWeapon(race, shooter, 'rocket');
+  shooter.cooldown.rocket = 0;
+  shooter.vx = Math.cos(shooter.a) * 300;
+  shooter.vy = Math.sin(shooter.a) * 300;
+  useWeapon(race, shooter, 'rocket');
+  for (const s of race.shots) assert.ok(Math.abs(Math.hypot(s.vx, s.vy) - expected) < 1e-6);
+  assert.equal(race.shots.length, 2);
+});
+
+const PLASMA_LOADOUT = { front: ['plasma', 'mg'], rear: 'emp', extra: 'nitro' };
+
+test('plasma: acerta o carro da frente e tira o dano dele', () => {
+  const { race, shooter, target } = duel({ loadout: PLASMA_LOADOUT });
+  useWeapon(race, shooter, 'plasma');
+  run(1, () => updateShots(race, STEP));
+  assert.equal(target.armor, target.stats.armor - WEAPONS.plasma.shot.damage);
+  assert.equal(race.shots.length, 0);
+});
+
+test('plasma: voa num múltiplo da velocidade máxima de quem atira, quica na mureta e some no fim do tempo', () => {
+  const { race, shooter, target } = duel({ loadout: PLASMA_LOADOUT });
+  target.alive = false;
+  upgradeEngine(shooter);
+  shooter.a += Math.PI / 2 - 0.3; // atira na diagonal, contra a mureta
+  useWeapon(race, shooter, 'plasma');
+  shooter.alive = false; // ninguém na pista para ser acertado
+  const [shot] = race.shots, { life } = WEAPONS.plasma.shot;
+  let inside = true;
+  run(life - 0.1, () => {
+    updateShots(race, STEP);
+    inside &&= nearestOnTrack(track, shot.x, shot.y, shot.idx).dist <= track.half;
+  });
+  const events = drainEvents(race);
+  assert.ok(race.shots.includes(shot), 'ainda em campo');
+  const speed = WEAPONS.plasma.shot.carSpeed * shooter.stats.maxSpeed;
+  assert.ok(Math.abs(Math.hypot(shot.vx, shot.vy) - speed) < 1e-6, 'quicar não muda a velocidade');
+  assert.ok(inside, 'não sai da pista');
+  assert.ok(events.filter((e) => e.type === 'shot-bounce').length >= 2);
+  assert.ok(!events.some((e) => e.type === 'shot-wall'));
+  run(0.2, () => updateShots(race, STEP));
+  assert.equal(race.shots.length, 0);
+});
+
+test('plasma: na volta da mureta, acerta quem atirou', () => {
+  const { race, shooter, target } = duel({ loadout: PLASMA_LOADOUT });
+  target.alive = false;
+  shooter.a += Math.PI / 2; // atira reto contra a mureta, parado
+  useWeapon(race, shooter, 'plasma');
+  run(1, () => updateShots(race, STEP));
+  assert.equal(shooter.armor, shooter.stats.armor - WEAPONS.plasma.shot.damage);
+  assert.equal(race.shots.length, 0);
+  assert.ok(drainEvents(race).some((e) => e.type === 'hit' && e.car === shooter));
+});
+
+test('metralhadora: a rajada inteira dá 130 de dano', () => {
   const { race, shooter, target } = duel({ gap: 150 });
+  const { ammo, shot: { damage: perShot } } = WEAPONS.mg;
+  assert.equal(ammo * perShot, 130);
   run(3, () => {
     useWeapon(race, shooter, 'mg');
     shooter.cooldown.mg = Math.max(0, shooter.cooldown.mg - STEP);
@@ -56,12 +147,21 @@ test('metralhadora: rajada de 20 tiros de 4 de dano', () => {
   });
   const shots = drainEvents(race).filter((e) => e.type === 'shot' && e.weapon === 'mg');
   const taken = target.stats.armor - target.armor;
-  assert.equal(shots.length, 20);
+  assert.equal(shots.length, ammo);
   assert.equal(shooter.ammo.mg, 0);
-  assert.ok(taken > 0 && taken <= 80 && taken % 4 === 0, `dano recebido: ${taken}`);
+  assert.ok(taken > 0 && taken % perShot === 0, `dano recebido: ${taken}`);
 });
 
-test('mina PEM tira 10 e inverte a direção por 2 segundos', () => {
+test('metralhadora: sem ninguém na frente, a bala vai até bater na mureta', () => {
+  const { race, shooter, target } = duel();
+  target.alive = false;
+  useWeapon(race, shooter, 'mg');
+  for (let t = 0; t < WEAPONS.mg.shot.life && race.shots.length; t += STEP) updateShots(race, STEP);
+  assert.equal(race.shots.length, 0);
+  assert.ok(drainEvents(race).some((e) => e.type === 'shot-wall' && e.weapon === 'mg'), 'sumiu na mureta, não por tempo');
+});
+
+test('mina PEM tira o dano dela e inverte a direção por 2 segundos', () => {
   const { race, shooter, target } = duel();
   race.mines.push({ weapon: 'emp', owner: shooter, x: target.x, y: target.y, armT: 0, age: 0 });
   updateMines(race, STEP);
@@ -178,11 +278,11 @@ test('cola: o carro para ao entrar, atravessa a mancha a 30% da máxima e volta 
   assert.equal(drainEvents(race).filter((e) => e.type === 'status').length, 1, 'um aviso por entrada');
 });
 
-test('cola: nem acelerando com nitro o carro passa de 30% da máxima', () => {
+test('cola: com nitro o carro atravessa a 75% da máxima, e não passa disso', () => {
   const { race, shooter, target } = duel({ loadout: DEFAULT_LOADOUT });
   pour(race, shooter, 'glue', target.x, target.y);
   updatePuddles(race, STEP);
-  const top = target.stats.maxSpeed * EFFECTS.glue.speed;
+  const top = target.stats.maxSpeed * EFFECTS.glue.nitroSpeed;
   target.input.up = true;
   target.nitroT = NITRO.duration;
   let fastest = 0;

@@ -1,11 +1,11 @@
-import { AI_COLORS, AI_NAMES, CAR_MODELS, COUNTDOWN, DEFAULT_CAR, DEFAULT_LOADOUT, DEMO_EXTRA, DIFFICULTIES, GRID_SIZE, PLAYER, RESPAWN, TOTAL_LAPS, TRACK_HALF, WALL_DAMAGE } from '../config.js';
+import { AI_COLORS, AI_NAMES, AI_STYLES, CAR_MODELS, COUNTDOWN, DEFAULT_CAR, DEFAULT_LOADOUT, DEMO_EXTRA, DIFFICULTIES, GRID_SIZE, PLAYER, RESPAWN, TOTAL_LAPS, WALL_DAMAGE } from '../config.js';
 import { pick, randRange, shuffle } from '../core/math.js';
 import { driveAI } from './ai.js';
 import { createCar, stepCar } from './car.js';
 import { collideCars } from './collisions.js';
 import { damage, destroyCar } from './damage.js';
 import { emit } from './events.js';
-import { randomLoadout, refillAmmo } from './loadout.js';
+import { equipped, randomLoadout, refillAmmo } from './loadout.js';
 import { placePickups, updatePickups } from './pickups.js';
 import { gridSlot, pastCrossing, trackPoint } from './track.js';
 import { updateMines, updatePuddles, updateShots, useWeapon } from './weapons.js';
@@ -14,9 +14,17 @@ const FINISH_DELAY = 3.5; // segundos entre a chegada do jogador e o fim da corr
 
 /**
  * Estado completo de uma corrida. `mode`: 'play' (com jogador) ou 'demo' (só CPU, fundo do menu).
- * `rng` permite repetir uma corrida igualzinha nos testes. A CPU sorteia o próprio carro e equipamento.
+ * `rng` permite repetir uma corrida igualzinha nos testes. A CPU sorteia o próprio carro e equipamento,
+ * e os perfis de comportamento (`AI_STYLES`) se revezam entre os carros dela.
+ * Campeonato: `playerUpgrades` e `playerUnits` são as compras do jogador (veja `createCar`); `rivals`
+ * ({ name, color, model }) fixa os adversários e os carros deles, que largam numa ordem sorteada; e cada
+ * arma da CPU tem `cpuUnits` unidades.
  */
-export function createRace({ track, mode = 'play', difficulty = 'medio', laps = TOTAL_LAPS, rng = Math.random, playerCar = DEFAULT_CAR, playerLoadout = DEFAULT_LOADOUT }) {
+export function createRace({
+  track, mode = 'play', difficulty = 'medio', laps = TOTAL_LAPS, rng = Math.random,
+  playerCar = DEFAULT_CAR, playerLoadout = DEFAULT_LOADOUT, playerUpgrades = {}, playerUnits = null,
+  rivals = null, cpuUnits = 1,
+}) {
   const race = {
     track, mode, rng,
     laps: mode === 'demo' ? Infinity : laps,
@@ -27,17 +35,26 @@ export function createRace({ track, mode = 'play', difficulty = 'medio', laps = 
   };
   const diff = DIFFICULTIES[difficulty] || DIFFICULTIES.medio;
   const names = shuffle(AI_NAMES.slice(), rng), colors = shuffle(AI_COLORS.slice(), rng);
+  const styles = shuffle(Object.keys(AI_STYLES), rng);
+  const grid = rivals && shuffle(rivals.slice(), rng);
+  const cpuUnitsOf = (loadout) => (cpuUnits === 1 ? null : Object.fromEntries(equipped(loadout).map((id) => [id, cpuUnits])));
   for (let k = 0; k < GRID_SIZE; k++) {
     const isPlayer = mode === 'play' && k === GRID_SIZE - 1;
-    const who = isPlayer ? PLAYER : k < names.length ? { name: names[k], color: colors[k] } : DEMO_EXTRA;
-    const model = isPlayer ? playerCar : pick(rng, Object.keys(CAR_MODELS));
+    const who = isPlayer ? PLAYER : grid?.[k] ?? (k < names.length ? { name: names[k], color: colors[k] } : DEMO_EXTRA);
+    const model = isPlayer ? playerCar : grid?.[k]?.model ?? pick(rng, Object.keys(CAR_MODELS));
     const loadout = isPlayer ? playerLoadout : randomLoadout(rng, model);
-    const car = createCar({ id: k, name: who.name, color: who.color, isPlayer, model, loadout });
+    const car = createCar({
+      id: k, name: who.name, color: who.color, isPlayer, model, loadout,
+      upgrades: isPlayer ? playerUpgrades : {},
+      units: isPlayer ? playerUnits : cpuUnitsOf(loadout),
+    });
     const slot = gridSlot(track, k), pos = trackPoint(track, slot.idx, slot.off);
     Object.assign(car, { x: pos.x, y: pos.y, a: track.ang[slot.idx], idx: slot.idx });
     car.ai.skill = diff.speed * randRange(rng, 0.95, 1.02);
-    car.ai.aggro = diff.aggro;
-    car.ai.dodge = diff.dodge;
+    const style = isPlayer ? null : styles[k % styles.length];
+    car.ai.style = style;
+    car.ai.aggro = diff.aggro * (AI_STYLES[style]?.aggro ?? 1);
+    car.ai.dodge = Math.min(1, diff.dodge * (AI_STYLES[style]?.dodge ?? 1));
     race.cars.push(car);
   }
   race.player = race.cars.find((c) => c.isPlayer) || null;
@@ -167,7 +184,7 @@ function falseStart(race, car) {
 // Quem explodiu no X renasce logo depois dele, para não ficar parado no caminho de quem vem do outro braço.
 function respawnCar(race, car) {
   const idx = pastCrossing(race.track, car.respawnIdx ?? car.idx);
-  const pos = trackPoint(race.track, idx, randRange(race.rng, -0.35, 0.35) * TRACK_HALF);
+  const pos = trackPoint(race.track, idx, randRange(race.rng, -0.35, 0.35) * race.track.half);
   Object.assign(car, {
     x: pos.x, y: pos.y, a: race.track.ang[idx], idx, vx: 0, vy: 0, spin: 0,
     alive: true, armor: car.stats.armor, invuln: RESPAWN.invulnerable, respawnIdx: null,

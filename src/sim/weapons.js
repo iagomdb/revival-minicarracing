@@ -1,8 +1,10 @@
-import { EFFECTS, MINES, NITRO, PUDDLES, TRACK_HALF, WEAPONS } from '../config.js';
+import { EFFECTS, MINES, NITRO, PUDDLES, WEAPONS } from '../config.js';
 import { randRange } from '../core/math.js';
 import { damage } from './damage.js';
 import { emit } from './events.js';
-import { nearestOnTrack } from './track.js';
+import { nearestOnOtherStretch, nearestOnTrack } from './track.js';
+
+const BALL_RADIUS = 6; // px: tiros que quicam batem na mureta com a borda, não com o centro
 
 /** Usa uma arma equipada, se tiver munição e já tiver passado o tempo de recarga entre disparos. */
 export function useWeapon(race, car, id) {
@@ -25,15 +27,28 @@ export function useWeapon(race, car, id) {
   }
 }
 
+/**
+ * Velocidade de um tiro disparado agora (px/s). `carSpeed`: velocidade fixa, um múltiplo da máxima do
+ * carro que atira. Senão, `speed` somada à do carro. A IA usa a mesma conta para prever se vai acertar.
+ */
+export function shotSpeed(car, w) {
+  return w.shot.carSpeed ? w.shot.carSpeed * car.stats.maxSpeed
+    : w.shot.speed + Math.max(0, car.vx * Math.cos(car.a) + car.vy * Math.sin(car.a));
+}
+
 function fire(race, car, id, w) {
   const a = car.a + (w.spread ? randRange(race.rng, -w.spread, w.spread) : 0);
   const fx = Math.cos(a), fy = Math.sin(a);
-  const speed = w.shot.speed + Math.max(0, car.vx * Math.cos(car.a) + car.vy * Math.sin(car.a));
-  race.shots.push({
-    weapon: id, owner: car, idx: car.idx, life: w.shot.life,
-    x: car.x + fx * 20, y: car.y + fy * 20, vx: fx * speed, vy: fy * speed,
-    seen: new Set(), // carros da CPU que já viram este tiro chegando (para desviar)
-  });
+  const speed = shotSpeed(car, w);
+  // Laser duplo: dois tiros paralelos, um de cada lado (cada um acerta sozinho). Os outros saem do centro.
+  const sides = w.shot.twin ? [-w.shot.twin, w.shot.twin] : [0];
+  for (const side of sides) {
+    race.shots.push({
+      weapon: id, owner: car, idx: car.idx, life: w.shot.life,
+      x: car.x + fx * 20 - fy * side, y: car.y + fy * 20 + fx * side, vx: fx * speed, vy: fy * speed,
+      seen: new Set(), // carros da CPU que já viram este tiro chegando (para desviar)
+    });
+  }
   emit(race, 'shot', { weapon: id, car, x: car.x, y: car.y });
 }
 
@@ -64,16 +79,18 @@ export function updateShots(race, dt) {
     if (!dead) {
       const n = nearestOnTrack(track, s.x, s.y, s.idx, 10);
       s.idx = n.idx;
-      if (n.dist > TRACK_HALF + 6) {
+      if (spec.bounce) bounceOffWalls(race, s, n);
+      else if (n.dist > track.half + 6) {
         dead = true;
         emit(race, 'shot-wall', { weapon: s.weapon, x: s.x, y: s.y });
       }
     }
     if (!dead) {
-      const target = cars.find((c) => c !== s.owner && c.alive && c.invuln <= 0 &&
+      const hitsOwner = spec.hitsOwnerAfter != null && spec.life - s.life >= spec.hitsOwnerAfter;
+      const target = cars.find((c) => (c !== s.owner || hitsOwner) && c.alive && c.invuln <= 0 &&
         (c.x - s.x) ** 2 + (c.y - s.y) ** 2 < spec.radius ** 2);
       if (target) {
-        damage(race, target, spec.damage, s.owner);
+        damage(race, target, spec.damage, target === s.owner ? null : s.owner);
         target.vx += s.vx * spec.push;
         target.vy += s.vy * spec.push;
         emit(race, 'hit', { weapon: s.weapon, car: target, x: s.x, y: s.y });
@@ -82,6 +99,25 @@ export function updateShots(race, dt) {
     }
     if (dead) shots.splice(i, 1);
   }
+}
+
+// Tiro que quica: ao encostar na mureta, volta espelhado, como bola de bilhar.
+// No cruzamento do Oito, a borda de um braço é asfalto do outro: ali ele passa para o outro braço.
+function bounceOffWalls(race, s, n) {
+  const { track } = race, limit = track.half - BALL_RADIUS;
+  if (n.dist <= limit) return;
+  if (track.crossing[n.idx]) {
+    const other = nearestOnOtherStretch(track, s.x, s.y, n.idx);
+    if (other.dist <= limit) { s.idx = other.idx; return; }
+  }
+  const nx = (s.x - n.px) / n.dist, ny = (s.y - n.py) / n.dist;
+  s.x = n.px + nx * limit;
+  s.y = n.py + ny * limit;
+  const out = s.vx * nx + s.vy * ny;
+  if (out <= 0) return;
+  s.vx -= 2 * out * nx;
+  s.vy -= 2 * out * ny;
+  emit(race, 'shot-bounce', { weapon: s.weapon, x: s.x, y: s.y });
 }
 
 export function updateMines(race, dt) {

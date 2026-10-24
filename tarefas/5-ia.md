@@ -14,8 +14,26 @@ Pode rodar junto com a tarefa 2.
 - O problema é o que vem depois. Quem escapa da confusão inicial abre vantagem e ninguém mais alcança: a corrida se
   decide nos primeiros segundos.
 - Hoje cada carro da CPU dirige e atira do mesmo jeito, só variando pela dificuldade (`skill`, `aggro`, `dodge` em
-  `car.ai`). Ele atira no que estiver na frente, sem pensar em quem está ganhando.
+  `car.ai`).
 - A IA fica em `src/sim/ai.js`, e as dificuldades em `DIFFICULTIES`, em `src/config.js`.
+
+## O que já foi feito na IA (não refaça)
+
+Outro chat já melhorou o traçado e o combate. Leia `src/sim/ai.js`, `src/sim/racing-line.js` e `tests/ai.test.js`
+antes de começar:
+
+- Traçado de corrida por pista (`racingLine`), com um desvio próprio de cada carro (`LANE_BIAS`, `ai.bias`).
+  A CPU freia pelas curvas do traçado (`targetSpeed`, `pathRadius`). O usuário quer a CPU jogando para ganhar:
+  o elástico não pode ser feito piorando a pilotagem ou a mira, só com o multiplicador de velocidade.
+- Ultrapassagem pelo lado com mais espaço.
+- Caça ao alvo mais bem colocado (`pickTarget`, `HUNT`, puxado por `ai.aggro`).
+- Tiro só quando a previsão acerta (`shotWouldHit`).
+- Arma traseira só quando quem vem atrás vai passar por cima, com o dobro de vontade para quem lidera.
+- Nitro numa reta comprida o bastante ou para recuperar velocidade quando trava (`wantsNitro`, `nitroFits`).
+- Perfis de comportamento (`AI_STYLES` em `src/config.js`: agressivo, piloto e defensivo), que se revezam entre
+  os carros da CPU em `createRace`, com a dificuldade valendo por cima.
+
+As antigas partes 2 (combate com estratégia) e 3 (personalidade) desta tarefa já estão feitas. Sobra só o elástico.
 
 ## O que fazer
 
@@ -36,43 +54,23 @@ Pode rodar junto com a tarefa 2.
   aceleração. Ponha isso no carro (por exemplo `car.boost`), lido em `drive()` em `src/sim/car.js`, numa edição
   pontual. A tarefa 1 também mexeu nesse arquivo.
 
-### 2. Combate com estratégia
-
-- A CPU passa a mirar em quem está na frente dela na classificação, com preferência pelo líder. Hoje ela mira no
-  que aparecer primeiro.
-- Um carro da CPU que está liderando e tem alguém colado atrás usa a arma traseira para se defender.
-- Quem está atrás e longe usa o nitro nas retas para encostar (o nitro na reta já existe; ajuste o critério).
-
-### 3. Personalidade
-
-Para a CPU não dirigir toda igual, cada carro sorteia um estilo no começo da corrida, usando o `rng` da corrida para
-os testes continuarem repetíveis:
-
-- **Agressivo:** atira mais e cola no carro da frente.
-- **Piloto:** traçado mais limpo e mais rápido, atira menos.
-- **Defensivo:** usa mais a arma traseira e protege a posição.
-
-Os valores ficam em `src/config.js`. A dificuldade continua valendo por cima do estilo.
-
 ## Testes
 
 - Elástico, testado com um carro parado em posições escolhidas: um carro da CPU longe atrás da referência recebe
   mais velocidade máxima que um carro ao lado dela; um carro da CPU muito à frente recebe menos; os tetos são
   respeitados; o jogador nunca muda; na última volta, quem está na frente não alivia.
-- Mira: com dois alvos ao alcance, a CPU prefere o que está mais bem colocado na corrida.
-- Estilos: cada carro da CPU recebe um estilo, e a mesma semente sorteia os mesmos estilos.
 - Se rodar rápido (poucos segundos), adicione um teste que roda algumas corridas com sementes diferentes, todos no
   piloto automático, e confere que a diferença entre o 1º e o 4º na chegada fica abaixo de um limite. Esse é o teste
   que mede a reclamação do usuário. Diga ao usuário qual limite você escolheu e por quê.
-- Os testes que já existem continuam passando, incluindo os de desvio de tiro. `npm test` e `npm run build`
-  passando.
+- Os testes que já existem continuam passando, incluindo os de desvio de tiro e os de `tests/ai.test.js`.
+  `npm test` e `npm run build` passando.
 
 ## Escopo
 
 - `src/sim/ai.js`.
-- `src/config.js`: `DIFFICULTIES` e novos blocos para o elástico e os estilos.
+- `src/config.js`: `DIFFICULTIES` e um bloco novo para o elástico.
 - `src/sim/car.js`: só o multiplicador do elástico em `drive()`.
-- `src/sim/race.js`: só se precisar da distância até a referência ou de sortear os estilos.
-- Testes novos (por exemplo `tests/ai.test.js`).
+- `src/sim/race.js`: só se precisar da distância até a referência.
+- Testes novos em `tests/ai.test.js` (o arquivo já existe; acrescente, não apague os de lá).
 
 Não mexa em pistas, telas, armas nem modelos de carro: são outras tarefas.

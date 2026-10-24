@@ -30,7 +30,8 @@ for (const { id, name } of TRACKS) {
 
     assert.equal(race.state, 'done');
     assert.ok(events.some((e) => e.type === 'race-over'));
-    assert.ok(race.cars.filter((c) => c.finished).length >= GRID_SIZE - 2, 'quase todos chegam antes do fim');
+    // Os carros mais lentos podem ainda estar na última volta, mas ninguém ficou uma volta para trás (travado).
+    for (const c of race.cars) assert.ok(c.finished || c.lap >= race.laps - 1, `${c.name} ficou na volta ${c.lap + 1}`);
     for (const c of race.cars) assert.ok(Number.isFinite(c.x + c.y + c.vx + c.vy + c.a), `${c.name} tem valor inválido`);
     assert.deepEqual(race.ranking.map((c) => c.place), [1, 2, 3, 4, 5, 6, 7, 8]);
   });

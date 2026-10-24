@@ -2,6 +2,7 @@ import { WEAPONS } from '../config.js';
 import { formatTime } from '../core/format.js';
 import { clamp, TAU } from '../core/math.js';
 import { KEY_HINTS } from '../input/keyboard.js';
+import { maxAmmo } from '../sim/loadout.js';
 import { drawWeaponIcon, WEAPON_COLORS } from './icons.js';
 import { roundRect, shadowText } from './shapes.js';
 
@@ -147,18 +148,18 @@ function drawSlot(ctx, p, id, keys, x, y) {
   ctx.font = `11px ${FONT}`;
   ctx.fillText(keys, x + 40, y + 40);
 
-  const right = x + SLOT_W - 8;
-  if (w.ammo === 1) drawSingleUse(ctx, ammo > 0, active, color, right - 46, y + 28);
-  else if (w.ammo <= MAX_LEDS) {
-    for (let i = 0; i < w.ammo; i++) {
+  const right = x + SLOT_W - 8, max = maxAmmo(p, id);
+  if (max === 1) drawSingleUse(ctx, ammo > 0, active, color, right - 46, y + 28);
+  else if (max <= MAX_LEDS) {
+    for (let i = 0; i < max; i++) {
       ctx.fillStyle = i < ammo ? color : 'rgba(255,255,255,0.12)';
-      ctx.fillRect(right - w.ammo * 10 + 4 + i * 10, y + 30, 6, 12);
+      ctx.fillRect(right - max * 10 + 4 + i * 10, y + 30, 6, 12);
     }
   } else {
     ctx.textAlign = 'right';
     ctx.font = `bold 13px ${FONT}`;
     ctx.fillStyle = ammo > 0 ? color : '#6a6670';
-    ctx.fillText(`${ammo}/${w.ammo}`, right, y + 41);
+    ctx.fillText(`${ammo}/${max}`, right, y + 41);
   }
 }
 

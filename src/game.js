@@ -1,25 +1,43 @@
-import { CAR_MODELS, DEFAULT_CAR, DIFFICULTIES } from './config.js';
+import { createCareerMode } from './career-mode.js';
+import { slotWeapon } from './career/shop.js';
+import { CAR_MODELS, DEFAULT_CAR, DIFFICULTIES, UNIT_MAX } from './config.js';
+import { clamp } from './core/math.js';
 import { drainEvents } from './sim/events.js';
-import { sanitizeLoadout } from './sim/loadout.js';
+import { equipped, sanitizeLoadout } from './sim/loadout.js';
 import { createRace, updateRace } from './sim/race.js';
 import { getTrack, nextTrackId } from './sim/tracks/index.js';
 
-const STORAGE = { difficulty: 'minicar.diff', loadout: 'minicar.loadout', track: 'minicar.track', car: 'minicar.car' };
+const STORAGE = { difficulty: 'minicar.diff', loadout: 'minicar.loadout', units: 'minicar.units', track: 'minicar.track', car: 'minicar.car' };
 const DIFFICULTY_KEYS = { Digit1: 'facil', Numpad1: 'facil', Digit2: 'medio', Numpad2: 'medio', Digit3: 'dificil', Numpad3: 'dificil' };
 
 /**
- * O "maestro": sabe em que tela o jogo está (menu, equipar, corrida, resultado), cria as corridas,
- * repassa as teclas para o carro do jogador e entrega os eventos da simulação para som, efeitos e HUD.
+ * O "maestro": sabe em que tela o jogo está (menu, equipar, corrida, resultado e as do campeonato), cria as
+ * corridas, repassa as teclas para o carro do jogador e entrega os eventos da simulação para som, efeitos e
+ * HUD. O campeonato fica em `career-mode.js`; sem campeonato ativo, as telas são as da corrida rápida.
  */
 export function createGame({ camera, effects, hud, synth, sfx, keyboard, screens }) {
   const car = Object.hasOwn(CAR_MODELS, load(STORAGE.car)) ? load(STORAGE.car) : DEFAULT_CAR;
+  const units = safeParse(load(STORAGE.units));
   const game = {
     screen: 'menu', paused: false, race: null,
     track: getTrack(load(STORAGE.track)),
     difficulty: DIFFICULTIES[load(STORAGE.difficulty)] ? load(STORAGE.difficulty) : 'medio',
     car,
     loadout: sanitizeLoadout(safeParse(load(STORAGE.loadout)), car),
+    units: units instanceof Object ? units : {}, // corrida rápida: unidades de cada arma (1 a 5)
   };
+  const unitsOf = (id) => clamp(Math.round(game.units[id]) || 1, 1, UNIT_MAX);
+
+  const career = createCareerMode({
+    screens,
+    storage: browserStorage(),
+    ask: (text) => globalThis.confirm?.(text) ?? true,
+    go: {
+      screen: setScreen,
+      demo: (trackId) => begin(createRace({ track: getTrack(trackId), mode: 'demo' }), game.screen),
+      race: (options) => play({ ...options, track: getTrack(options.track) }),
+    },
+  });
 
   function begin(race, screen) {
     game.race = race;
@@ -30,8 +48,15 @@ export function createGame({ camera, effects, hud, synth, sfx, keyboard, screens
     camera.snap(race.player || race.cars[0]);
   }
 
-  // No menu roda uma corrida só com a CPU, de fundo.
+  function setScreen(name) {
+    game.screen = name;
+    screens.show(name);
+  }
+
+  // No menu roda uma corrida só com a CPU, de fundo. Voltar ao menu sai do campeonato (o save fica).
   function startDemo() {
+    career.leave();
+    screens.setChampionship(career.hasSave());
     begin(createRace({ track: game.track, mode: 'demo' }), 'menu');
     screens.show('menu');
   }
@@ -39,18 +64,39 @@ export function createGame({ camera, effects, hud, synth, sfx, keyboard, screens
   // A tela de equipar fica por cima da corrida que estiver rodando (a do menu ou a que acabou).
   function openLoadout() {
     game.screen = 'loadout';
-    screens.showLoadout(game.loadout, game.car);
+    screens.showLoadout(game.loadout, game.car, game.units);
     screens.show('loadout');
   }
 
-  function startPlay({ autopilot = false } = {}) {
-    begin(createRace({ track: game.track, mode: 'play', difficulty: game.difficulty, playerCar: game.car, playerLoadout: game.loadout }), 'play');
-    game.race.player.autopilot = autopilot;
+  function play(options) {
+    begin(createRace({ mode: 'play', ...options }), 'play');
+    screens.setChampionshipRace(career.active);
     screens.show(null);
+  }
+
+  // Corrida rápida, com o carro e as armas da tela Equipar.
+  function startPlay({ autopilot = false } = {}) {
+    const playerUnits = Object.fromEntries(equipped(game.loadout).map((id) => [id, unitsOf(id)]));
+    play({ track: game.track, difficulty: game.difficulty, playerCar: game.car, playerLoadout: game.loadout, playerUnits });
+    game.race.player.autopilot = autopilot;
+  }
+
+  // Largar ou reiniciar: a corrida do campeonato ou uma rápida.
+  const race = () => (career.active ? career.race() : startPlay());
+  // Sair da corrida pela pausa: no campeonato a corrida não conta e o jogador volta para a garagem.
+  const quit = () => (career.active ? career.garage() : startDemo());
+  // "Correr de novo" / "Continuar" no resultado.
+  const again = () => (career.active ? career.garage() : openLoadout());
+
+  // Voltar da tela Equipar ou da concessionária.
+  function back() {
+    if (game.screen === 'loadout') career.active ? career.garage() : startDemo();
+    else if (game.screen === 'dealer') career.hasCar() ? career.garage() : startDemo();
   }
 
   // Escolher na arma 2 a mesma da arma 1 (ou o contrário) troca as duas de lugar.
   function pickWeapon(slot, id) {
+    if (career.active) return career.pick(slot, id);
     const l = game.loadout;
     if (slot === 'front0' || slot === 'front1') {
       const i = slot === 'front0' ? 0 : 1;
@@ -58,7 +104,16 @@ export function createGame({ camera, effects, hud, synth, sfx, keyboard, screens
       l.front[i] = id;
     } else l[slot] = id;
     save(STORAGE.loadout, JSON.stringify(l));
-    screens.showLoadout(l, game.car);
+    openLoadout();
+  }
+
+  function changeUnits(slot, delta) {
+    if (career.active) return career.units(slot, delta);
+    const id = slotWeapon(game.loadout, slot);
+    if (!id) return;
+    game.units[id] = clamp(unitsOf(id) + delta, 1, UNIT_MAX);
+    save(STORAGE.units, JSON.stringify(game.units));
+    openLoadout();
   }
 
   // Trocar de carro ajusta as armas: num carro de 1 arma fica a primeira; no de 2, a segunda volta preenchida.
@@ -67,7 +122,7 @@ export function createGame({ camera, effects, hud, synth, sfx, keyboard, screens
     game.loadout = sanitizeLoadout(game.loadout, id);
     save(STORAGE.car, id);
     save(STORAGE.loadout, JSON.stringify(game.loadout));
-    screens.showLoadout(game.loadout, id);
+    openLoadout();
   }
 
   function setPaused(paused) {
@@ -97,38 +152,60 @@ export function createGame({ camera, effects, hud, synth, sfx, keyboard, screens
     switch (game.screen) {
       case 'menu':
         if (code === 'Enter') openLoadout();
+        else if (code === 'KeyC') career.open(game.difficulty);
         else if (DIFFICULTY_KEYS[code]) setDifficulty(DIFFICULTY_KEYS[code]);
         else if (code === 'KeyT') setTrack(nextTrackId(game.track.id));
         break;
       case 'loadout':
-        if (code === 'Enter') startPlay();
-        else if (code === 'Escape') startDemo();
+        if (code === 'Enter') race();
+        else if (code === 'Escape') back();
         break;
       case 'results':
-        if (code === 'Enter') openLoadout();
-        else if (code === 'KeyQ') startDemo();
+        if (code === 'Enter') again();
+        else if (code === 'KeyQ') career.active ? again() : startDemo();
         break;
       case 'play':
         if (code === 'Escape') setPaused(!game.paused);
-        else if (game.paused && code === 'KeyR') startPlay();
-        else if (game.paused && code === 'KeyQ') startDemo();
+        else if (game.paused && code === 'KeyR') race();
+        else if (game.paused && code === 'KeyQ') quit();
+        break;
+      case 'garage':
+        if (code === 'Enter') career.equip();
+        else if (code === 'KeyQ' || code === 'Escape') startDemo();
+        break;
+      case 'dealer':
+        if (code === 'Escape') back();
+        break;
+      case 'final':
+        if (code === 'Enter') career.start(game.difficulty);
+        else if (code === 'KeyQ' || code === 'Escape') startDemo();
         break;
     }
   }
 
   keyboard.onPress(onKey);
   keyboard.onBlur(() => setPaused(true));
-  const withSound = (fn) => () => { synth.init(); fn(); };
+  const withSound = (fn) => (...args) => { synth.init(); fn(...args); };
   screens.bind({
-    equip: withSound(openLoadout),
-    race: withSound(() => startPlay()),
+    quickRace: withSound(openLoadout),
+    championship: withSound(() => career.open(game.difficulty)),
+    newChampionship: withSound(() => career.start(game.difficulty)),
+    race: withSound(race),
+    again: withSound(again),
+    back: withSound(back),
     resume: withSound(() => setPaused(false)),
-    restart: withSound(() => startPlay()),
-    quit: withSound(startDemo),
+    restart: withSound(race),
+    quit: withSound(quit),
+    menu: withSound(startDemo),
+    equip: withSound(() => career.equip()),
+    dealer: withSound(() => career.dealer()),
+    buy: withSound((id) => career.buyCar(id)),
     difficulty: setDifficulty,
     track: setTrack,
     car: pickCar,
     pick: pickWeapon,
+    units: changeUnits,
+    upgrade: (key, delta) => career.upgrade(key, delta),
   });
   screens.setDifficulty(game.difficulty);
   screens.setTrack(game.track.id);
@@ -152,7 +229,8 @@ export function createGame({ camera, effects, hud, synth, sfx, keyboard, screens
         sfx.handle(e, race, camera);
         if (e.type === 'race-over' && game.screen === 'play') {
           game.screen = 'results';
-          screens.showResults(race);
+          if (career.active) career.raceOver(race);
+          else screens.showResults(race);
         }
       }
     },
@@ -171,6 +249,9 @@ export function createGame({ camera, effects, hud, synth, sfx, keyboard, screens
 }
 
 // localStorage pode não existir (aba privada, bloqueio): o jogo funciona sem ele.
+function browserStorage() {
+  try { return localStorage; } catch { return null; }
+}
 function load(key) {
   try { return localStorage.getItem(key); } catch { return null; }
 }

@@ -23,6 +23,8 @@ Outros chats estão mexendo nesta mesma pasta ao mesmo tempo, cada um na sua tar
 3. Três carros: `tarefas/3-carros.md`
 4. Segundo mapa novo: `tarefas/4-segundo-mapa.md`
 5. IA mais esperta e corrida mais disputada: `tarefas/5-ia.md`
+6. O primeiro campeonato: `tarefas/6-campeonato.md`
+7. Loja de armas e melhorias: `tarefas/7-loja.md` (depois das tarefas 5 e 6)
 
 - Fique no escopo da sua tarefa.
 - Se um arquivo mudar enquanto você trabalha, releia antes de editar de novo. Nunca desfaça mudança que não é sua.

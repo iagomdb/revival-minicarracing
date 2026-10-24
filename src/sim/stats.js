@@ -12,13 +12,14 @@ export function carPoints(model, upgrades = {}) {
   };
 }
 
-/** Converte pontos nos números que a física usa. */
+/** Converte pontos nos números que a física usa. A tração conta em relação à velocidade (veja `POINT_VALUES`). */
 export function deriveStats(points) {
   const value = (key) => POINT_VALUES[key].base + POINT_VALUES[key].perPoint * points[key];
+  const tr = POINT_VALUES.traction;
   return {
     maxSpeed: value('speed'),
     accel: value('accel'),
-    grip: value('traction'),
+    grip: Math.max(tr.min, tr.base + tr.perPoint * (points.traction - points.speed)),
     armor: value('armor'),
     brake: HANDLING.brake,
     reverse: HANDLING.reverse,

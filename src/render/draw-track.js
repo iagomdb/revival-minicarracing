@@ -1,4 +1,4 @@
-import { GRID_SIZE, TRACK_HALF } from '../config.js';
+import { GRID_SIZE } from '../config.js';
 import { seededRandom } from '../core/math.js';
 import { gridSlot, nearestOnOtherStretch, trackPoint } from '../sim/track.js';
 import { circle } from './shapes.js';
@@ -7,8 +7,10 @@ import { circle } from './shapes.js';
 const GROUNDS = {
   sand: { size: 256, seed: 7, base: '#c9a86b', dots: ['rgba(120,85,40,0.18)', 'rgba(255,240,200,0.18)'], count: 900 },
   grass: { size: 256, seed: 11, base: '#5f8f3c', dots: ['rgba(30,70,20,0.22)', 'rgba(200,235,140,0.16)'], count: 1100 },
+  snow: { size: 256, seed: 5, base: '#e4ebf0', dots: ['rgba(110,140,170,0.16)', 'rgba(255,255,255,0.8)'], count: 900 },
+  dirt: { size: 256, seed: 9, base: '#ad6339', dots: ['rgba(80,35,15,0.2)', 'rgba(240,180,130,0.18)'], count: 1000 },
 };
-const EDGE_LINE = TRACK_HALF - 5; // distância das faixas amarelas até o meio da pista
+const EDGE_LINE = 5; // distância das faixas amarelas até a borda do asfalto
 
 /** Tudo da pista que só precisa ser montado uma vez: o traçado e as texturas. */
 export function createTrackArt(ctx, track) {
@@ -43,9 +45,9 @@ function polyline(track, keep) {
 // No cruzamento, as faixas de um braço não podem passar por cima do asfalto do outro.
 function underOtherStretch(track, i) {
   if (!track.crossing[i]) return false;
-  return [0, -EDGE_LINE, EDGE_LINE].some((off) => {
+  return [0, EDGE_LINE - track.half, track.half - EDGE_LINE].some((off) => {
     const q = trackPoint(track, i, off);
-    return nearestOnOtherStretch(track, q.x, q.y, i).dist < TRACK_HALF;
+    return nearestOnOtherStretch(track, q.x, q.y, i).dist < track.half;
   });
 }
 
@@ -73,7 +75,7 @@ export function drawGround(ctx, art, rect) {
 // Num cruzamento, o asfalto de cada braço cobre o guard-rail e a zebra do outro. As faixas pintadas
 // vêm por último, num traçado com buracos no X, e terminam retas (sem ponta redonda).
 export function drawTrack(ctx, track, art) {
-  const w = TRACK_HALF * 2;
+  const w = track.half * 2;
   const stroke = (width, style, path = art.path) => { ctx.lineWidth = width; ctx.strokeStyle = style; ctx.stroke(path); };
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
@@ -97,14 +99,14 @@ export function drawTrack(ctx, track, art) {
 }
 
 function drawFinishLine(ctx, track) {
-  const p = track.pts[0], w = TRACK_HALF * 2, sq = 7;
+  const p = track.pts[0], w = track.half * 2, sq = 7;
   ctx.save();
   ctx.translate(p.x, p.y);
   ctx.rotate(track.ang[0]);
   for (let row = 0; row < 2; row++) {
     for (let k = 0; k * sq < w; k++) {
       ctx.fillStyle = (row + k) % 2 ? '#111' : '#fafafa';
-      ctx.fillRect(-sq + row * sq, -TRACK_HALF + k * sq, sq, Math.min(sq, w - k * sq));
+      ctx.fillRect(-sq + row * sq, -track.half + k * sq, sq, Math.min(sq, w - k * sq));
     }
   }
   ctx.restore();
@@ -127,7 +129,7 @@ function drawGridMarks(ctx, track) {
 
 /** Pórtico da largada com o semáforo. É desenhado por cima dos carros. */
 export function drawGantry(ctx, track, lights) {
-  const p = track.pts[0], len = TRACK_HALF * 2 + 56;
+  const p = track.pts[0], len = track.half * 2 + 56;
   const beam = (ox, oy, color) => {
     ctx.save();
     ctx.translate(p.x + ox, p.y + oy);

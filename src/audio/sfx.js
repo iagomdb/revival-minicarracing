@@ -27,8 +27,10 @@ export function createSfx(synth) {
         case 'shot':
           if (e.weapon === 'mg') synth.noise(0.04, 0.12 * v, 2500);
           else if (e.weapon === 'rocket') { synth.noise(0.45, 0.25 * v, 1200); synth.tone(160, 0.45, 'sawtooth', 0.06 * v, 70); }
+          else if (e.weapon === 'plasma') synth.tone(300, 0.3, 'sine', 0.15 * v, 900);
           else synth.tone(1400, 0.12, 'square', 0.08 * v, 300);
           break;
+        case 'shot-bounce': synth.tone(700, 0.07, 'sine', 0.08 * v, 450); break;
         case 'hit':
         case 'shot-wall':
           if (e.weapon === 'rocket') boom(synth, v);

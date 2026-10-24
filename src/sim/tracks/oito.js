@@ -11,6 +11,7 @@ export default {
   id: 'oito',
   name: 'Oito',
   ground: 'grass',
+  width: 280,         // largura do asfalto (px): o dobro da pista normal
   startAt: 0,
   points: roundCorners([
     [0, 360],                  // largada, subindo

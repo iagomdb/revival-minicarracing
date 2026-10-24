@@ -70,6 +70,7 @@ export function drawShots(ctx, shots) {
   for (const s of shots) {
     const sp = Math.hypot(s.vx, s.vy), ux = s.vx / sp, uy = s.vy / sp;
     if (s.weapon === 'rocket') drawRocket(ctx, s, Math.atan2(uy, ux));
+    else if (s.weapon === 'plasma') drawPlasma(ctx, s);
     else if (s.weapon === 'mg') beam(ctx, s, ux, uy, 10, 'rgba(255,210,63,0.35)', 5, '#ffe27a', 2);
     else beam(ctx, s, ux, uy, 24, 'rgba(255,60,60,0.4)', 7, '#ffffff', 2.5);
   }
@@ -99,4 +100,16 @@ function drawRocket(ctx, s, angle) {
   ctx.fillStyle = '#e8392b';
   ctx.beginPath(); ctx.moveTo(6, -3); ctx.lineTo(11, 0); ctx.lineTo(6, 3); ctx.fill();
   ctx.restore();
+}
+
+// Bola de plasma: brilho pulsando em volta de um miolo claro; some aos poucos no último meio segundo.
+function drawPlasma(ctx, s) {
+  ctx.globalAlpha = clamp(s.life / 0.5, 0, 1);
+  ctx.fillStyle = 'rgba(199,125,255,0.35)';
+  circle(ctx, s.x, s.y, 10 + Math.sin(s.life * 25) * 1.5);
+  ctx.fillStyle = '#c77dff';
+  circle(ctx, s.x, s.y, 6);
+  ctx.fillStyle = '#f3e6ff';
+  circle(ctx, s.x - 1.5, s.y - 1.5, 2.5);
+  ctx.globalAlpha = 1;
 }

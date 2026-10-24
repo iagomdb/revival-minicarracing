@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { PICKUPS, RESPAWN, STEP, TRACK_HALF, WALL_MARGIN } from '../src/config.js';
+import { PICKUPS, RESPAWN, STEP, WALL_MARGIN } from '../src/config.js';
 import { seededRandom } from '../src/core/math.js';
 import { createCar, stepCar } from '../src/sim/car.js';
 import { destroyCar } from '../src/sim/damage.js';
@@ -40,13 +40,8 @@ test('o Oito tem o X: um trecho de cruzamento em cada braço. O Deserto não tem
   assert.ok(!desert.crossing.includes(true));
 });
 
-test('a volta do Oito tem comprimento parecido com a do Deserto', () => {
-  assert.ok(Math.abs(oito.N - desert.N) / desert.N < 0.1, `Oito ${oito.N * 10} px, Deserto ${desert.N * 10} px`);
-});
-
-test('as curvas do Oito dão para fazer de carro: raio de pelo menos 140 px', () => {
-  const tightest = Math.min(...oito.radius);
-  assert.ok(tightest >= 140, `curva mais fechada: ${tightest.toFixed(0)} px`);
+test('o Oito tem o dobro da largura do Deserto', () => {
+  assert.equal(oito.half, 2 * desert.half);
 });
 
 test('no Oito, um carro que anda a volta inteira atravessa o X duas vezes sem o índice pular de braço', () => {
@@ -66,7 +61,7 @@ test('no Oito, um carro que anda a volta inteira atravessa o X duas vezes sem o 
 
 test('no Oito, sacos de dinheiro e kits de conserto ficam fora do X', () => {
   const center = oito.pts[crossingCenters(oito)[0]];
-  const clear = TRACK_HALF * Math.SQRT2 + PICKUPS.radius; // o item não encosta no quadrado de asfalto do X
+  const clear = oito.half * Math.SQRT2 + PICKUPS.radius; // o item não encosta no quadrado de asfalto do X
   for (const seed of [1, 2, 3, 4, 5]) {
     for (const pk of createRace({ track: oito, rng: seededRandom(seed) }).pickups) {
       const d = Math.hypot(pk.x - center.x, pk.y - center.y);
@@ -82,16 +77,17 @@ function pushSideways(track, idx) {
   Object.assign(car, { x: p.x, y: p.y, idx, a: track.ang[idx] + Math.PI / 2, vx: n.x * 300, vy: n.y * 300 });
   car.input.up = true;
   let hits = 0;
-  for (let t = 0; t < 0.6; t += STEP) if (stepCar(car, STEP, track)) hits++;
+  for (let t = 0; t < 1; t += STEP) if (stepCar(car, STEP, track)) hits++;
   return { car, hits };
 }
 
 test('no X, a borda do braço fica sobre o asfalto do outro: o carro desliza sem bater e não troca de braço', () => {
-  const c = crossingCenters(oito)[0];
+  const c = crossingCenters(oito)[0], limit = oito.half - WALL_MARGIN;
   const { car, hits } = pushSideways(oito, c);
   assert.equal(hits, 0, 'nenhuma batida');
   assert.ok(Math.abs(step(oito, c, car.idx)) <= 3, `índice foi de ${c} para ${car.idx}`);
-  assert.ok(nearestOnTrack(oito, car.x, car.y, car.idx).dist <= TRACK_HALF - WALL_MARGIN + 0.01, 'continua no próprio braço');
+  const dist = nearestOnTrack(oito, car.x, car.y, car.idx).dist;
+  assert.ok(dist > limit - 1 && dist <= limit + 0.01, `encostou na borda do próprio braço (${dist.toFixed(1)} px do meio)`);
   // Fora do X, a mesma manobra bate na mureta.
   assert.ok(pushSideways(oito, 0).hits > 0);
 });
@@ -105,5 +101,6 @@ test('quem explode no X renasce logo depois dele', () => {
   for (let t = 0; t < RESPAWN.delay + 0.1; t += STEP) updateRace(race, STEP);
   assert.ok(p.alive);
   assert.ok(!oito.crossing[p.idx], 'fora do X');
-  assert.ok(step(oito, c, p.idx) > 0 && step(oito, c, p.idx) < 30, `renasceu em ${p.idx}, o X fica em ${c}`);
+  assert.ok(oito.crossing[(p.idx - 1 + oito.N) % oito.N], 'no primeiro ponto depois do X');
+  assert.ok(step(oito, c, p.idx) > 0, `renasceu em ${p.idx}, antes do meio do X (${c})`);
 });

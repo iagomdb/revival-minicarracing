@@ -1,15 +1,21 @@
-import { CAR_MODELS, DEFAULT_CAR, DEFAULT_LOADOUT, EFFECTS, HANDLING, NITRO, TRACK_HALF, WALL_MARGIN } from '../config.js';
+import { CAR_MODELS, DEFAULT_CAR, DEFAULT_LOADOUT, EFFECTS, HANDLING, NITRO, WALL_MARGIN } from '../config.js';
 import { clamp, TAU } from '../core/math.js';
-import { sanitizeLoadout } from './loadout.js';
+import { fitLoadout, sanitizeLoadout } from './loadout.js';
 import { carPoints, deriveStats, gripAt } from './stats.js';
 import { nearestOnOtherStretch, nearestOnTrack } from './track.js';
 
-export function createCar({ id, name, color, isPlayer = false, model = DEFAULT_CAR, upgrades = {}, loadout = DEFAULT_LOADOUT }) {
+/**
+ * `units`: unidades compradas de cada arma ({ laser: 3 }). Sem `units`, cada arma equipada vale 1 unidade e
+ * encaixe vazio é preenchido com o padrão; com `units`, o carro leva só o que foi comprado.
+ */
+export function createCar({ id, name, color, isPlayer = false, model = DEFAULT_CAR, upgrades = {}, loadout = DEFAULT_LOADOUT, units = null }) {
   const car = {
     id, name, color, isPlayer,
     autopilot: false,             // jogador dirigido pela IA (depois da chegada, ou em testes)
     model, upgrades: { engine: 0, tires: 0, armor: 0, ...upgrades },
-    loadout: sanitizeLoadout(loadout, model), // só as armas que cabem no modelo
+    // só as armas que cabem no modelo
+    loadout: units ? fitLoadout(loadout, model, units) : sanitizeLoadout(loadout, model),
+    units: { ...units },
     points: null, stats: null,
     x: 0, y: 0, a: 0, vx: 0, vy: 0, spin: 0,
     idx: 0, seg: 0,               // ponto da pista mais próximo e a fração até o próximo
@@ -20,7 +26,13 @@ export function createCar({ id, name, color, isPlayer = false, model = DEFAULT_C
     status: { emp: 0, oil: 0, glue: 0 },        // segundos restantes de cada efeito
     kills: 0, deaths: 0, accidents: 0, extras: 0, lastHitBy: null, lastHitT: -99,
     input: { up: false, down: false, steer: 0, fire1: false, fire2: false, rear: false, extra: false },
-    ai: { off: 0, offTarget: 0, offT: 0, dodgeT: 0, stuckT: 0, reverseT: 0, skill: 1, aggro: 0.5, dodge: 0.5 },
+    // IA: `off` é a faixa (px do centro); `dev`, o quanto ela sai do traçado; `bias`, o lado preferido do carro;
+    // `offTarget`/`offT`, uma faixa forçada por um tempo (desvio ou ultrapassagem); `style`, o perfil
+    // de comportamento (`AI_STYLES`, nenhum no jogador).
+    ai: {
+      off: 0, dev: 0, bias: 0, biasT: 0, offTarget: 0, offT: 0, dodgeT: 0, stuckT: 0, reverseT: 0,
+      skill: 1, aggro: 0.5, dodge: 0.5, style: null,
+    },
   };
   refreshStats(car);
   car.armor = car.stats.armor;
@@ -90,10 +102,11 @@ export function drive(car, dt) {
   car.y += car.vy * dt;
 }
 
-// Acelerador, freio e ré. Na cola, a velocidade máxima cai, e nem o nitro nem a ré passam dela.
+// Acelerador, freio e ré. Na cola, a velocidade máxima cai, e nem a ré passa dela; o nitro sobe o limite
+// da cola (`nitroSpeed`), mas também não passa dele.
 function throttle(car, vF, nitro, dt) {
-  const s = car.stats, inp = car.input;
-  const top = car.status.glue > 0 ? s.maxSpeed * EFFECTS.glue.speed : s.maxSpeed * (nitro ? NITRO.speed : 1);
+  const s = car.stats, inp = car.input, glue = EFFECTS.glue;
+  const top = s.maxSpeed * (car.status.glue > 0 ? (nitro ? glue.nitroSpeed : glue.speed) : nitro ? NITRO.speed : 1);
   if (nitro) vF = Math.min(top, vF + s.accel * NITRO.accel * dt);
   else if (inp.up && !inp.down && vF < top) vF = Math.min(top, vF + s.accel * dt * (vF < 0 ? 2.5 : 1));
   if (inp.down && !nitro) {
@@ -112,7 +125,7 @@ function keepInsideWalls(car, track) {
   const n = nearestOnTrack(track, car.x, car.y, car.idx);
   car.idx = n.idx;
   car.seg = n.t;
-  const limit = TRACK_HALF - WALL_MARGIN;
+  const limit = track.half - WALL_MARGIN;
   if (n.dist <= limit) return null;
 
   const nx = (car.x - n.px) / n.dist, ny = (car.y - n.py) / n.dist;
@@ -122,7 +135,7 @@ function keepInsideWalls(car, track) {
   if (force <= 0) return null;
   // No cruzamento, a borda do braço fica em cima do asfalto do outro braço: ali o carro
   // só desliza, sem bater. Ele continua preso ao próprio braço, então não troca de caminho.
-  if (track.crossing[n.idx] && nearestOnOtherStretch(track, car.x, car.y, n.idx).dist < TRACK_HALF) {
+  if (track.crossing[n.idx] && nearestOnOtherStretch(track, car.x, car.y, n.idx).dist < track.half) {
     car.vx -= nx * force;
     car.vy -= ny * force;
     return null;

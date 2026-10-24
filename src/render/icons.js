@@ -3,7 +3,7 @@ import { circle, roundRect } from './shapes.js';
 
 /** Cor de destaque de cada arma (LEDs de munição e selos do HUD). */
 export const WEAPON_COLORS = {
-  laser: '#ff4040', mg: '#ffd23f', rocket: '#ff8a3d',
+  laser: '#ff4040', mg: '#ffd23f', rocket: '#ff8a3d', plasma: '#c77dff',
   mine: '#ffb020', emp: '#5cc8ff', oil: '#a9a9b8', glue: '#f3e7a0', nitro: '#5cc8ff',
 };
 
@@ -32,6 +32,11 @@ export function drawWeaponIcon(ctx, id, x, y) {
       ctx.fillStyle = '#ffb347'; ctx.beginPath(); ctx.moveTo(-9, -2.5); ctx.lineTo(-14, 0); ctx.lineTo(-9, 2.5); ctx.fill();
       ctx.fillStyle = '#d8d8d8'; ctx.fillRect(-9, -3, 14, 6);
       ctx.fillStyle = '#e8392b'; ctx.beginPath(); ctx.moveTo(5, -3); ctx.lineTo(10, 0); ctx.lineTo(5, 3); ctx.fill();
+      break;
+    case 'plasma':
+      ctx.fillStyle = 'rgba(199,125,255,0.35)'; circle(ctx, x, y, 10);
+      ctx.fillStyle = '#c77dff'; circle(ctx, x, y, 6.5);
+      ctx.fillStyle = '#f3e6ff'; circle(ctx, x - 1.5, y - 1.5, 3);
       break;
     case 'mine':
     case 'emp':

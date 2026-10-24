@@ -1,4 +1,3 @@
-import { TRACK_HALF } from '../config.js';
 import { seededRandom, TAU } from '../core/math.js';
 import { nearestOnTrack } from '../sim/track.js';
 import { circle } from './shapes.js';
@@ -8,16 +7,18 @@ const MAX_ITEMS = 190;
 const MIX = {
   sand: [['cactus', 0.4], ['rock', 0.35], ['bush', 0.25]],
   grass: [['tree', 0.45], ['shrub', 0.35], ['rock', 0.2]],
+  snow: [['pine', 0.6], ['rock', 0.4]],
+  dirt: [['rock', 0.5], ['bush', 0.35], ['cactus', 0.15]],
 };
 
-/** Cactos, pedras, árvores e arbustos fora da pista. A semente fixa deixa o cenário sempre igual. */
+/** Cactos, pedras, árvores, pinheiros e arbustos fora da pista. A semente fixa deixa o cenário sempre igual. */
 export function buildScenery(track) {
   const rng = seededRandom(42), items = [], mix = MIX[track.ground] || MIX.sand;
   const { minX, maxX, minY, maxY } = track.ext;
   for (let i = 0; i < 600 && items.length < MAX_ITEMS; i++) {
     const x = minX - 400 + rng() * (maxX - minX + 800);
     const y = minY - 400 + rng() * (maxY - minY + 800);
-    if (nearestOnTrack(track, x, y).dist < TRACK_HALF + 45) continue;
+    if (nearestOnTrack(track, x, y).dist < track.half + 45) continue;
     items.push({
       type: pickType(mix, rng()),
       x, y, size: 0.7 + rng() * 0.8,
@@ -36,7 +37,7 @@ function pickType(mix, k) {
   return mix[mix.length - 1][0];
 }
 
-const DRAW = { cactus: drawCactus, rock: drawRock, bush: drawBush, tree: drawTree, shrub: drawShrub };
+const DRAW = { cactus: drawCactus, rock: drawRock, bush: drawBush, tree: drawTree, shrub: drawShrub, pine: drawPine };
 
 export function drawScenery(ctx, items, rect) {
   for (const item of items) {
@@ -114,4 +115,28 @@ function drawShrub(ctx, b) {
   }
   ctx.fillStyle = '#5aa04a';
   circle(ctx, b.x - r * 0.2, b.y - r * 0.25, r * 0.35);
+}
+
+// Pinheiro visto de cima: duas estrelas de galhos, a de cima mais clara, e neve no topo.
+function drawPine(ctx, t) {
+  const r = 14 * t.size;
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  circle(ctx, t.x + r * 0.5, t.y + r * 0.6, r);
+  ctx.fillStyle = '#24513a';
+  star(ctx, t.x, t.y, r, t.arms[0]);
+  ctx.fillStyle = '#336e4c';
+  star(ctx, t.x, t.y, r * 0.6, t.arms[1]);
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  circle(ctx, t.x - r * 0.12, t.y - r * 0.12, r * 0.2);
+}
+
+function star(ctx, x, y, r, turn) {
+  ctx.beginPath();
+  for (let i = 0; i < 16; i++) {
+    const a = turn + (i / 16) * TAU, len = i % 2 ? r * 0.6 : r;
+    if (i) ctx.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len);
+    else ctx.moveTo(x + Math.cos(a) * len, y + Math.sin(a) * len);
+  }
+  ctx.closePath();
+  ctx.fill();
 }

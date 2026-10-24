@@ -63,8 +63,10 @@ export function createEffects() {
         case 'shot-wall':
           if (e.weapon === 'rocket') explode(e.x, e.y, 0.7, camera);
           else if (e.weapon === 'mg') sparks(e.x, e.y, 3, '#ffe08a');
+          else if (e.weapon === 'plasma') sparks(e.x, e.y, 14, '#d9a8ff');
           else sparks(e.x, e.y, e.type === 'hit' ? 10 : 5, '#ffb0a0');
           break;
+        case 'shot-bounce': sparks(e.x, e.y, 4, '#d9a8ff'); break;
         case 'status':
           if (e.effect === 'emp') sparks(e.x, e.y, 14, '#9be3ff');
           break;
@@ -113,8 +115,9 @@ export function createEffects() {
         } else st.skid = null;
       }
 
-      for (const s of race.shots) { // rastro de fumaça dos foguetes
+      for (const s of race.shots) { // rastro de fumaça dos foguetes e brilho do plasma
         if (s.weapon === 'rocket') add(s.x, s.y, rand(-10, 10), rand(-10, 10), rand(0.4, 0.7), rand(3, 4), '#bdbdbd', 10, 2);
+        else if (s.weapon === 'plasma' && Math.random() < dt * 30) add(s.x, s.y, 0, 0, 0.25, 4, '#c77dff', -12, 0);
       }
 
       for (let i = particles.length - 1; i >= 0; i--) {

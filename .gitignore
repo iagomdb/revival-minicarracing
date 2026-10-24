@@ -1,2 +1,5 @@
 node_modules/
 dist/
+
+# Prints e arte do jogo original: só referência local, não vão para o repositório
+print game/

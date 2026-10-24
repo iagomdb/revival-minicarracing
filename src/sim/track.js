@@ -12,7 +12,7 @@ const ARC_STEP = Math.PI / 8; // um ponto de controle a cada 22,5° nos cantos a
  * Monta a pista: suaviza os pontos de controle e reamostra a linha central com espaçamento fixo.
  * Assim o índice de um ponto também mede a distância percorrida na volta.
  */
-export function createTrack({ id, name, ground = 'sand', points, scale = 1, startAt = 0 }) {
+export function createTrack({ id, name, ground = 'sand', width = 2 * TRACK_HALF, points, scale = 1, startAt = 0 }) {
   const ctrl = points.map(([x, y]) => ({ x: x * scale, y: y * scale }));
   const pts = rotateToStart(resample(catmullRom(ctrl), TRACK_SPACING), ctrl[startAt]);
   const N = pts.length;
@@ -34,9 +34,9 @@ export function createTrack({ id, name, ground = 'sand', points, scale = 1, star
 
   const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
   const ext = { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
-  const track = { id, name, ground, pts, N, ang, nrm, turn, radius, ext, half: TRACK_HALF };
+  const track = { id, name, ground, pts, N, ang, nrm, turn, radius, ext, half: width / 2 };
   // Cruzamento (o X do Oito): pontos que têm outro trecho da pista a menos de uma largura de pista.
-  track.crossing = pts.map((p, i) => nearestOnOtherStretch(track, p.x, p.y, i).dist < 2 * TRACK_HALF);
+  track.crossing = pts.map((p, i) => nearestOnOtherStretch(track, p.x, p.y, i).dist < width);
   return track;
 }
 
@@ -44,14 +44,15 @@ export function createTrack({ id, name, ground = 'sand', points, scale = 1, star
  * Pontos de controle de um polígono com cantos arredondados. Cada canto é [x, y, raio]: ali entra um
  * arco de círculo com esse raio (sem raio, o ponto fica como está). As retas ganham pontos a cada
  * `step` px, assim o Catmull-Rom deixa os lados retos e as curvas com o raio pedido.
+ * Se dois cantos vizinhos estiverem perto demais para os raios pedidos, dá erro dizendo quais.
  */
 export function roundCorners(corners, step = 100) {
-  const n = corners.length, arcs = [];
+  const n = corners.length, arcs = [], reach = [];
   for (let i = 0; i < n; i++) {
     const [ax, ay] = corners[(i - 1 + n) % n], [x, y, r = 0] = corners[i], [bx, by] = corners[(i + 1) % n];
     const u = unit(x - ax, y - ay), v = unit(bx - x, by - y);
     const cross = u.x * v.y - u.y * v.x, turn = Math.atan2(cross, u.x * v.x + u.y * v.y);
-    if (!r || Math.abs(turn) < 1e-6) { arcs.push([{ x, y }]); continue; }
+    if (!r || Math.abs(turn) < 1e-6) { arcs.push([{ x, y }]); reach.push(0); continue; }
     // O arco começa e termina a `t` px do canto e tem o centro do lado de dentro da curva.
     const t = r * Math.tan(Math.abs(turn) / 2), side = Math.sign(cross);
     const cx = x - u.x * t - u.y * side * r, cy = y - u.y * t + u.x * side * r;
@@ -62,14 +63,27 @@ export function roundCorners(corners, step = 100) {
       arc.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r });
     }
     arcs.push(arc);
+    reach.push(t);
   }
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n, [ax, ay] = corners[i], [bx, by] = corners[j];
+    if (reach[i] + reach[j] > Math.hypot(bx - ax, by - ay) + 0.5) {
+      throw new Error(`roundCorners: os cantos ${i} e ${j} estão perto demais para esses raios`);
+    }
+  }
+  // Pontos repetidos (dois arcos encostados) fariam o Catmull-Rom dar um laço.
   const out = [];
+  const add = (x, y) => {
+    const last = out[out.length - 1];
+    if (!last || Math.hypot(x - last[0], y - last[1]) > 1) out.push([x, y]);
+  };
   arcs.forEach((arc, i) => {
-    out.push(...arc.map((p) => [p.x, p.y]));
+    for (const p of arc) add(p.x, p.y);
     const a = arc[arc.length - 1], b = arcs[(i + 1) % n][0];
     const parts = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / step);
-    for (let k = 1; k < parts; k++) out.push([a.x + ((b.x - a.x) * k) / parts, a.y + ((b.y - a.y) * k) / parts]);
+    for (let k = 1; k < parts; k++) add(a.x + ((b.x - a.x) * k) / parts, a.y + ((b.y - a.y) * k) / parts);
   });
+  if (Math.hypot(out[0][0] - out[out.length - 1][0], out[0][1] - out[out.length - 1][1]) <= 1) out.pop();
   return out;
 }
 
@@ -164,5 +178,5 @@ export function trackPoint(track, idx, off = 0) {
 /** Posição de largada `k` (0 = pole). O último lugar é do jogador, como no original. */
 export function gridSlot(track, k) {
   const row = Math.floor(k / 2), side = k % 2 ? 1 : -1;
-  return { idx: (track.N - 5 - row * 7 - (k % 2) * 3) % track.N, off: side * 30 };
+  return { idx: (track.N - 5 - row * 7 - (k % 2) * 3) % track.N, off: (side * 3 * track.half) / 7 }; // 30 px na pista normal
 }

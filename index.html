@@ -49,17 +49,27 @@
       </table>
       <p class="tip">3 voltas contra 7 carros. Antes de largar você escolhe o carro e as armas, e a munição recarrega toda vez
         que você cruza a linha de chegada. Pegue os sacos de <b>$</b> e as caixas de conserto. E não saia antes do verde!</p>
-      <button id="startBtn" class="big">Correr! <small>(Enter)</small></button>
+      <p class="tip">No <b>campeonato</b> você começa com $ 12.000, compra o carro e as armas e corre as 5 pistas. A
+        dificuldade escolhida acima vale para o campeonato todo.</p>
+      <div class="btns">
+        <button id="startBtn" class="big">Corrida rápida <small>(Enter)</small></button>
+        <button id="champBtn" class="big">Campeonato <small>(C)</small></button>
+      </div>
+      <button id="newChampBtn" class="link" hidden>Começar um campeonato novo</button>
     </div>
   </div>
 
   <div id="loadout" class="overlay hidden">
     <div class="panel wide">
-      <h2>Equipar</h2>
-      <p class="sub">Escolha o carro e o que vai nele. A munição de cada arma recarrega a cada volta.</p>
+      <div class="title-row"><h2>Equipar</h2><b class="money" id="loMoney" hidden></b></div>
+      <p class="sub" id="loSub"></p>
       <div class="slot">
-        <div class="slot-head"><span class="label">Carro</span></div>
+        <div class="slot-head"><span class="label" id="carLabel">Carro</span></div>
         <div class="choices cars" id="cars"></div>
+      </div>
+      <div class="slot" id="upgrades" hidden>
+        <div class="slot-head"><span class="label">Melhorias</span></div>
+        <div class="upgrades" id="upgradeList"></div>
       </div>
       <div class="slot">
         <div class="slot-head"><span class="label">Arma 1</span><span><kbd>Ctrl</kbd> ou <kbd>Z</kbd></span></div>
@@ -111,6 +121,57 @@
       <div class="btns">
         <button id="againBtn" class="big">Correr de novo <small>(Enter)</small></button>
         <button id="menuBtn">Menu <small>(Q)</small></button>
+      </div>
+    </div>
+  </div>
+
+  <div id="garage" class="overlay hidden">
+    <div class="panel wide">
+      <div class="title-row"><h2 id="garTitle">Campeonato</h2><b class="money" id="garMoney"></b></div>
+      <p class="sub" id="garSub"></p>
+      <div class="scroll">
+        <table class="res">
+          <thead>
+            <tr><th>#</th><th>Piloto</th><th>Carro</th><th>Vitórias</th><th>Última</th><th>Pontos</th></tr>
+          </thead>
+          <tbody id="garBody"></tbody>
+        </table>
+      </div>
+      <p class="tip" id="garInfo"></p>
+      <div class="btns">
+        <button id="garRaceBtn" class="big">Equipar e correr <small>(Enter)</small></button>
+        <button id="garDealerBtn">Trocar de carro</button>
+        <button id="garMenuBtn">Menu <small>(Q)</small></button>
+      </div>
+    </div>
+  </div>
+
+  <div id="dealer" class="overlay hidden">
+    <div class="panel wide">
+      <div class="title-row"><h2>Concessionária</h2><b class="money" id="dealMoney"></b></div>
+      <p class="sub" id="dealSub"></p>
+      <div class="choices cars" id="dealCars"></div>
+      <div class="btns">
+        <button id="dealBackBtn">Voltar <small>(Esc)</small></button>
+      </div>
+    </div>
+  </div>
+
+  <div id="final" class="overlay hidden">
+    <div class="panel wide">
+      <h2 id="finTitle"></h2>
+      <p class="sub" id="finSub"></p>
+      <div class="scroll">
+        <table class="res">
+          <thead>
+            <tr><th>#</th><th>Piloto</th><th>Carro</th><th>Vitórias</th><th>Última</th><th>Pontos</th></tr>
+          </thead>
+          <tbody id="finBody"></tbody>
+        </table>
+      </div>
+      <div class="btns">
+        <button id="finAgainBtn" class="big">Novo campeonato <small>(Enter)</small></button>
+        <button id="finMenuBtn">Menu <small>(Q)</small></button>
       </div>
     </div>
   </div>

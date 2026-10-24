@@ -3,6 +3,7 @@
   --muted: #b9b2a3;
   --accent: #ffd23f;
   --red: #e8392b;
+  --green: #7cfc9a;
   --panel: rgba(22, 20, 26, 0.93);
   --line: #4a4550;
 }
@@ -105,7 +106,7 @@ button.big:hover { background: #ff4a3a; }
 .car-pic { width: 80px; height: 48px; align-self: center; }
 .meter {
   display: grid;
-  grid-template-columns: 76px repeat(10, 1fr);
+  grid-template-columns: 76px repeat(13, 1fr);
   gap: 2px;
   align-items: center;
   color: var(--muted);
@@ -114,6 +115,46 @@ button.big:hover { background: #ff4a3a; }
 .info + .meter, .meter + .stat { margin-top: 4px; }
 .meter i { height: 7px; border-radius: 1px; background: rgba(255, 255, 255, 0.12); }
 .meter i.on { background: var(--accent); }
+.meter i.up { background: var(--green); }
+
+/* Loja e campeonato */
+[hidden] { display: none !important; }
+button:disabled { opacity: 0.4; cursor: default; }
+button:disabled:hover { background: #3a3540; }
+div.choice { background: #3a3540; border: 1px solid #5a5462; border-radius: 8px; max-width: 280px; }
+.title-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.money { color: var(--accent); font-size: 22px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.choice .price { color: var(--green); font-size: 12px; font-weight: 700; }
+.choice .status { color: var(--ink); font-size: 12px; }
+.units { display: flex; align-items: center; gap: 6px; }
+.leds { display: inline-flex; gap: 3px; }
+.leds i { width: 9px; height: 13px; border-radius: 2px; background: rgba(255, 255, 255, 0.12); }
+.leds i.on { background: var(--accent); }
+button.tiny { padding: 2px 10px; font-weight: 700; }
+.upgrades { display: grid; gap: 6px; }
+.upgrade {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #2e2a33;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.upgrade .info { display: block; color: var(--muted); font-size: 12px; }
+.upgrade button.tiny:last-child { min-width: 92px; }
+button.link {
+  display: block;
+  margin: 10px auto 0;
+  padding: 4px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 13px;
+  text-decoration: underline;
+}
+button.link:hover { background: none; color: var(--ink); }
 
 /* Tabelas */
 table { width: 100%; border-collapse: collapse; font-size: 15px; }
